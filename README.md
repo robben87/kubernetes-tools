@@ -1,6 +1,6 @@
 # kubernetes-tools
 
-this Tool requires jinja2
+this Tool requires python jinja2
 
  `yum install python-pip`
  
