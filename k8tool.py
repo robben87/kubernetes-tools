@@ -159,8 +159,8 @@ def RollingDeploy():
            os.system(cmd)
 
    #Delete working Dirs
-    if os.path.exists(WorkDir) and os.path.isdir(WorkDir):
-        shutil.rmtree(WorkDir)
+   if os.path.exists(WorkDir) and os.path.isdir(WorkDir):
+       shutil.rmtree(WorkDir)
 
 def GetEvents():
      try:
