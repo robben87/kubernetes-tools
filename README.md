@@ -7,7 +7,7 @@ this Tool requires python jinja2
  `pip install jinja2`
 
 
-`kubernetes-tools]# ./kubectl-tool.py --help
+`kubernetes-tools]# ./kubectl-tool.py --help`
  usage: kubectl-tool.py [-h] {view,scale,rolling-update,decode-secrets} ...
  
  positional arguments:
