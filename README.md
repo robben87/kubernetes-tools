@@ -6,7 +6,7 @@ this Tool requires python jinja2
  
  `pip install jinja2`
 
-
+```console
 kubernetes-tools]# ./kubectl-tool.py --help
  usage: kubectl-tool.py [-h] {view,scale,rolling-update,decode-secrets} ...
 
@@ -19,4 +19,5 @@ kubernetes-tools]# ./kubectl-tool.py --help
      decode-secrets      Decode secrets contents
  
  optional arguments:
-   -h, --help            show this help message and exit`
+   -h, --help            show this help message and exit
+```   
