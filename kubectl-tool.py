@@ -1,16 +1,12 @@
 #!/usr/bin/python
+                                                                  
 import sys                                                        
 import os                                                         
 import time                                                                                                       
 import argparse                                                   
 import shutil     
+import base64
 from jinja2 import Environment, FileSystemLoader
-#import jinja2 
-#import datetime
-#import logging                                                    
-#import logging.handlers as handlers                               
-#import subprocess                                                 
-                                                                  
                                                                   
 def EnvDefinition():                                              
     global WorkDir                                                
@@ -162,30 +158,54 @@ def RollingDeploy():
    if os.path.exists(WorkDir) and os.path.isdir(WorkDir):
        shutil.rmtree(WorkDir)
 
-def GetEvents():
-     try:
-        args.namespace and args.watch
-        cmd=('kubectl get events --sort-by=.metadata.creationTimestamp -n %s --watch ' % (args.namespaces))
-        print(cmd)
-     except :
-        print("prova")
+def DecodeSecrets():
 
-#    if all([ args.namespace ,args.watch ]) == 0:
-#        cmd=('kubectl get events --sort-by=.metadata.creationTimestamp --all-namespaces')
-#        print(cmd)
-#    #    os.system(cmd)
-#    #    sys.exit()
-#
-#    if all([ args.namespace ,args.watch ]):
-#        cmd=('kubectl get events --sort-by=.metadata.creationTimestamp -n %s --watch ' % (args.namespaces))
-#        print(cmd)
-#       # os.system(cmd)
-#
-   # if args.namespace:
-   #     cmd=('kubectl get events --sort-by=.metadata.creationTimestamp -n %s ' % (args.namespace))
-   #     print(cmd)
-   #  #   os.system(cmd)
-   #  #   sys.exit()
+
+    if all([ args.namespace ,args.secret ]):
+        filetemp = "/tmp/.lista_secret.txt"
+        cmd=('kubectl get secrets %s  -n %s -o jsonpath=\'{.data}\' |   tr " " "\\n" | sed -e \'s/map\[//g\' | sed -e \'s/\]//g\' > %s' %(args.secret,args.namespace,filetemp))
+        #print(cmd)
+        #print('\n')
+        print("\n--- Decoding: "+args.secret.upper()+" ---\n")
+        os.system(cmd)
+        with open(filetemp) as value:
+            for line in value:
+                #print(line) 
+                val = line.split(":")[0]
+                key = line.split(":")[1]
+                #print(val)
+                #print(key)
+                key_decoded = base64.b64decode(key)
+                output = (val+":"+key_decoded)
+                print(output)
+        sys.exit()
+
+    if  args.namespace:
+        filetemp = "/tmp/.lista_all_secret.txt"
+        filetemp_single = "/tmp/.secret.txt"
+        cmd=('kubectl get secrets -n %s --no-headers| grep -v default-token | awk \'{print $1}\' > %s' %(args.namespace,filetemp))
+        #print(cmd)
+        #print("---"+filetemp+"---")
+        os.system(cmd)
+        #per_test = "/tmp/.lista_all_secret_1.txt"  #Da cancellare dopo i test
+        #with open (per_test) as value:
+        print ("\n------ "+args.namespace.upper()+" ------\n")
+        with open (filetemp) as value:
+            for single_secret in value:
+                #print(single_secret.rstrip())
+                cmd=('kubectl get secrets %s -n %s -o jsonpath=\'{.data}\' |   tr " " "\\n" | sed -e \'s/map\[//g\' | sed -e \'s/\]//g\' > %s' %(single_secret.rstrip(),args.namespace,filetemp_single))
+                #print (cmd)
+                os.system(cmd)
+                print ("--- Decoding: "+single_secret.rstrip().upper()+" ---\n")
+                with open(filetemp_single) as value2:
+                    for line in value2:
+                        val = line.split(":")[0]
+                        key = line.split(":")[1]
+                        key_decoded = base64.b64decode(key)
+                        output = (val+":"+key_decoded)
+                        print(output)
+                print ("\n---\n")
+        sys.exit()
 
 if __name__=='__main__':
 
@@ -198,29 +218,35 @@ if __name__=='__main__':
     subparsers=parser.add_subparsers()
     
     #createtheparserforthe"view"command
-    parser_view=subparsers.add_parser("view",help="list deployments for a namespace (The default namespace is  default)")
-    parser_view.add_argument("-n","--namespace",help="specify namespace",default="default")
-    parser_view.add_argument("-ar","--actualreplicas", help="search for deployments that has same int value of replica",action="store",required=False)
+    parser_view=subparsers.add_parser("view",help="List deployments for a namespace (The default namespace is  default)")
+    parser_view.add_argument("-n","--namespace",help="Specify namespace",default="default")
+    parser_view.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
     parser_view.set_defaults(func=ViewDeploy)
     
     #createtheparserforthe"scale"command
-    parser_scale=subparsers.add_parser("scale",help="scale deployments at desired replicas")
-    parser_scale.add_argument("-n","--namespace",help="specify namespace",default="default")
-    parser_scale.add_argument("-r","--replicas", help="specify for which replicas you want to scale",required=False)
-    parser_scale.add_argument("-ar","--actualreplicas", help="search for deployments that has same int value of replica",action="store",required=False)
+    parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
+    parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
+    parser_scale.add_argument("-r","--replicas", help="Specify for which replicas you want to scale",required=False)
+    parser_scale.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
     parser_scale.set_defaults(func=ScaleDeploy)
 
-    #createtheparserforthe"events"command
-    parser_events=subparsers.add_parser("events",help="View events ordered by time")
-    parser_events.add_argument("-w","--watch",help="tail events",default=None,required=False,action='store_true')
-    parser_events.add_argument("-n","--namespace",help="specify namespace",default=None,required=False)
-    parser_events.set_defaults(func=GetEvents)
+#    #createtheparserforthe"events"command
+#    parser_events=subparsers.add_parser("events",help="View events ordered by time")
+#    parser_events.add_argument("-w","--watch",help="tail events",default=None,required=False,action='store_true')
+#    parser_events.add_argument("-n","--namespace",help="specify namespace",default=None,required=False)
+#    parser_events.set_defaults(func=GetEvents)
 
     #createtheparserforthe"RollingUpdate"command
     parser_rolling=subparsers.add_parser("rolling-update",help="Execute rolling Update for deployments")
-    parser_rolling.add_argument("-d","--deployment",help="deploy",action="store",required=False)
-    parser_rolling.add_argument("-n","--namespace",help="specify namespace",default="default")
+    parser_rolling.add_argument("-d","--deployment",help="Deploy",action="store",required=False)
+    parser_rolling.add_argument("-n","--namespace",help="Specify namespace",default="default")
     parser_rolling.set_defaults(func=RollingDeploy)
+
+    #Create the parser for the "DecodeSecrets" command
+    parser_decode=subparsers.add_parser("decode-secrets",help="Decode secrets contents")
+    parser_decode.add_argument("-s","--secret",help="Secret name to be decoded",action="store",required=False)
+    parser_decode.add_argument("-n","--namespace",help="Specify namespace. Without secret specified it will print all secrets decoded for the namespace",default="default")
+    parser_decode.set_defaults(func=DecodeSecrets)
 
     if len(sys.argv[1:])==0:
         parser.print_help()
@@ -235,5 +261,7 @@ if __name__=='__main__':
         GetEvents()
     elif "rolling-update" in sys.argv:
         RollingDeploy()
+    elif "decode-secrets" in sys.argv:
+        DecodeSecrets()
     else:
         print("nulla")
