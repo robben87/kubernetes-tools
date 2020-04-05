@@ -7,6 +7,9 @@ import argparse
 import shutil     
 import base64
 from jinja2 import Environment, FileSystemLoader
+from kubernetes import config,client
+config.load_kube_config()
+v1 = client.CoreV1Api()
                                                                   
 def EnvDefinition():                                              
     global WorkDir                                                
