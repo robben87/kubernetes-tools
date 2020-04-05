@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-                                                                  
+                                                              
 import sys                                                        
 import os                                                         
 import time                                                                                                       
@@ -160,52 +160,27 @@ def RollingDeploy():
 
 def DecodeSecrets():
 
-
     if all([ args.namespace ,args.secret ]):
-        filetemp = "/tmp/.lista_secret.txt"
-        cmd=('kubectl get secrets %s  -n %s -o jsonpath=\'{.data}\' |   tr " " "\\n" | sed -e \'s/map\[//g\' | sed -e \'s/\]//g\' > %s' %(args.secret,args.namespace,filetemp))
-        #print(cmd)
-        #print('\n')
-        print("\n--- Decoding: "+args.secret.upper()+" ---\n")
-        os.system(cmd)
-        with open(filetemp) as value:
-            for line in value:
-                #print(line) 
-                val = line.split(":")[0]
-                key = line.split(":")[1]
-                #print(val)
-                #print(key)
-                key_decoded = base64.b64decode(key)
-                output = (val+":"+key_decoded)
-                print(output)
-        sys.exit()
-
+        secrets = v1.read_namespaced_secret(name=args.secret,namespace=args.namespace,pretty='True')
+        print ("\n------- Decoding Secret: "+secrets.metadata.name.upper()+" -------\n")
+        secrets_data = (secrets.data)
+        for key,value in secrets_data.items():
+            value_decoded = base64.b64decode(value)
+            print("%-15s:\t%-15s" % (key,value_decoded.decode('utf-8',errors='ignore')))
+    sys.exit()
+    
     if  args.namespace:
-        filetemp = "/tmp/.lista_all_secret.txt"
-        filetemp_single = "/tmp/.secret.txt"
-        cmd=('kubectl get secrets -n %s --no-headers| grep -v default-token | awk \'{print $1}\' > %s' %(args.namespace,filetemp))
-        #print(cmd)
-        #print("---"+filetemp+"---")
-        os.system(cmd)
-        #per_test = "/tmp/.lista_all_secret_1.txt"  #Da cancellare dopo i test
-        #with open (per_test) as value:
-        print ("\n------ "+args.namespace.upper()+" ------\n")
-        with open (filetemp) as value:
-            for single_secret in value:
-                #print(single_secret.rstrip())
-                cmd=('kubectl get secrets %s -n %s -o jsonpath=\'{.data}\' |   tr " " "\\n" | sed -e \'s/map\[//g\' | sed -e \'s/\]//g\' > %s' %(single_secret.rstrip(),args.namespace,filetemp_single))
-                #print (cmd)
-                os.system(cmd)
-                print ("--- Decoding: "+single_secret.rstrip().upper()+" ---\n")
-                with open(filetemp_single) as value2:
-                    for line in value2:
-                        val = line.split(":")[0]
-                        key = line.split(":")[1]
-                        key_decoded = base64.b64decode(key)
-                        output = (val+":"+key_decoded)
-                        print(output)
-                print ("\n---\n")
-        sys.exit()
+        secrets_list = v1.list_namespaced_secret(args.namespace)
+        for sec in secrets_list.items:
+            print("\n------- Decoding All Secrets for namespace :"+args.namespace.upper()+" -------\n")
+            print("\n-------"+sec.metadata.name.upper()+"-------\n")
+            secret_name = sec.metadata.name
+            secret_single = v1.read_namespaced_secret(name=secret_name,namespace="docfly")
+            secrets_data = (secret_single.data)
+            for key,value in secrets_data.items():
+                value_decoded = base64.b64decode(value)
+                print("%s:\t%s" % (key,value_decoded.decode('utf-8',errors='ignore')))
+    sys.exit()
 
 if __name__=='__main__':
 
