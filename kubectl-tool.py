@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!./kubernetes-toolEnv/bin/python3
                                                               
 import sys                                                        
 import os                                                         
@@ -7,9 +7,10 @@ import argparse
 import shutil     
 import base64
 from jinja2 import Environment, FileSystemLoader
+import numpy as np
+import pandas as pd
 from kubernetes import config,client
 config.load_kube_config()
-v1 = client.CoreV1Api()
                                                                   
 def EnvDefinition():                                              
     global WorkDir                                                
@@ -17,14 +18,25 @@ def EnvDefinition():
     global NowDir                                                 
 
 def ViewDeploy():
-
     if all([ args.namespace ,args.actualreplicas ]):
-        cmd=('kubectl get deployments -n %s | grep "%s/%s" ' % (args.namespace,args.actualreplicas,args.actualreplicas))
-        print("-----------------------------------------------------")
-        print("view all deployments of namespace %s with replicas %s" %(args.namespace,args.actualreplicas))
-        print("-----------------------------------------------------")
-        os.system(cmd)
-        sys.exit()
+        v1 = client.AppsV1Api()
+
+        list_deployment = v1.list_namespaced_deployment(namespace=args.namespace)
+        data = np.array([['','NAME','READY_REPLICAS','REPLICAS','UNAVAILABLE','STRATEGY']])
+        for deploy in list_deployment.items:
+            name = deploy.metadata.name
+            deploy = v1.read_namespaced_deployment(name=name,namespace=args.namespace)
+            name_read = deploy.metadata.name
+            ready_rep = deploy.status.ready_replicas
+            replicas = deploy.status.replicas
+            not_ready = deploy.status.unavailable_replicas
+            strategy = deploy.spec.strategy.type
+            if str(args.actualreplicas) == str(replicas):
+                data = np.append(data,[['',name_read,ready_rep,replicas,not_ready,strategy]],axis=0)
+
+        df=pd.DataFrame(data=data[1:,0:],index=data[1:,0],columns=data[0,0:])
+        print(df)
+    sys.exit()
 
     if args.namespace:
         cmd=('kubectl get deployments -n %s ' % (args.namespace))
@@ -162,6 +174,7 @@ def RollingDeploy():
        shutil.rmtree(WorkDir)
 
 def DecodeSecrets():
+    v1 = client.CoreV1Api()
 
     if all([ args.namespace ,args.secret ]):
         secrets = v1.read_namespaced_secret(name=args.secret,namespace=args.namespace,pretty='True')
@@ -169,9 +182,10 @@ def DecodeSecrets():
         secrets_data = (secrets.data)
         for key,value in secrets_data.items():
             value_decoded = base64.b64decode(value)
-            print("%-15s:\t%-15s" % (key,value_decoded.decode('utf-8',errors='ignore')))
-    sys.exit()
-    
+            keys = str(key+":")
+            print("%-15s\t%-15s" % (keys,value_decoded.decode('utf-8',errors='ignore')))
+        sys.exit()
+
     if  args.namespace:
         secrets_list = v1.list_namespaced_secret(args.namespace)
         for sec in secrets_list.items:
@@ -182,8 +196,9 @@ def DecodeSecrets():
             secrets_data = (secret_single.data)
             for key,value in secrets_data.items():
                 value_decoded = base64.b64decode(value)
-                print("%s:\t%s" % (key,value_decoded.decode('utf-8',errors='ignore')))
-    sys.exit()
+                keys = str(key+":")
+                print("%-15s\t%-15s" % (key,value_decoded.decode('utf-8',errors='ignore')))
+        sys.exit()
 
 if __name__=='__main__':
 
