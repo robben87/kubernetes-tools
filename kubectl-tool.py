@@ -1,21 +1,18 @@
-#!./kubernetes-toolEnv/bin/python3
-                                                              
-import sys                                                        
-import os                                                         
-import time                                                                                                       
-import argparse                                                   
-import shutil     
+import sys
+import os
+import argparse
+import shutil
 import base64
 from jinja2 import Environment, FileSystemLoader
 import numpy as np
 import pandas as pd
 from kubernetes import config,client
 config.load_kube_config()
-                                                                  
-def EnvDefinition():                                              
-    global WorkDir                                                
-    global Date                                                   
-    global NowDir                                                 
+
+def EnvDefinition():
+    global WorkDir
+    global Date
+    global NowDir
 
 def ViewDeploy():
     if all([ args.namespace ,args.actualreplicas ]):
@@ -76,13 +73,13 @@ def ScaleDeploy():
     #\\ Template File creation \\#
     file=open(Template,"w")
     file.write("apiVersion: extensions/v1beta1\n")
-    file.write("kind: Deployment\n")              
-    file.write("metadata:\n")                     
-    file.write("  name: {{ name }}\n")               
-    file.write("spec:\n")                         
-    file.write("  replicas: {{ replicas }}\n")         
+    file.write("kind: Deployment\n")
+    file.write("metadata:\n")
+    file.write("  name: {{ name }}\n")
+    file.write("spec:\n")
+    file.write("  replicas: {{ replicas }}\n")
     file.close()
-    
+
     with open(List) as name:
         for line in name:
             deploy_name=line.replace('\n','')
@@ -203,19 +200,19 @@ def DecodeSecrets():
 if __name__=='__main__':
 
     #Call Functions:
-    EnvDefinition()            
+    EnvDefinition()
 
     #Argparse e help menu
     #createthetop-levelparser
     parser=argparse.ArgumentParser()
     subparsers=parser.add_subparsers()
-    
+
     #createtheparserforthe"view"command
     parser_view=subparsers.add_parser("view",help="List deployments for a namespace (The default namespace is  default)")
     parser_view.add_argument("-n","--namespace",help="Specify namespace",default="default")
     parser_view.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
     parser_view.set_defaults(func=ViewDeploy)
-    
+
     #createtheparserforthe"scale"command
     parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
     parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
@@ -243,15 +240,16 @@ if __name__=='__main__':
 
     if len(sys.argv[1:])==0:
         parser.print_help()
-                                                                                           
-    args=parser.parse_args()                                                               
+
+    args=parser.parse_args()
 
     if "view" in sys.argv:
         ViewDeploy()
     elif "scale" in sys.argv:
         ScaleDeploy()
-    elif "events" in sys.argv:
-        GetEvents()
+    # TODO
+    # elif "events" in sys.argv:
+        # GetEvents()
     elif "rolling-update" in sys.argv:
         RollingDeploy()
     elif "decode-secrets" in sys.argv:
