@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 import os
 import argparse
@@ -33,7 +34,7 @@ def ViewDeploy():
 
         df=pd.DataFrame(data=data[1:,0:],index=data[1:,0],columns=data[0,0:])
         print(df)
-    sys.exit()
+        sys.exit()
 
     if args.namespace:
         cmd=('kubectl get deployments -n %s ' % (args.namespace))
