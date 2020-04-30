@@ -20,7 +20,7 @@ def ViewDeploy():
         v1 = client.AppsV1Api()
 
         list_deployment = v1.list_namespaced_deployment(namespace=args.namespace)
-        data = np.array([['','NAME','READY_REPLICAS','REPLICAS','UNAVAILABLE','STRATEGY']])
+        data = pd.DataFrame(columns=['NAME','READY_REPLICAS','REPLICAS','UNAVAILABLE','STRATEGY'])
         for deploy in list_deployment.items:
             name = deploy.metadata.name
             deploy = v1.read_namespaced_deployment(name=name,namespace=args.namespace)
@@ -30,20 +30,44 @@ def ViewDeploy():
             not_ready = deploy.status.unavailable_replicas
             strategy = deploy.spec.strategy.type
             if str(args.actualreplicas) == str(replicas):
-                data = np.append(data,[['',name_read,ready_rep,replicas,not_ready,strategy]],axis=0)
+                data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
+                output = data.to_string(justify='center',index=False)
 
-        df=pd.DataFrame(data=data[1:,0:],index=data[1:,0],columns=data[0,0:])
-        print(df)
-        sys.exit()
+        if data.empty:
+            print("")
+            print("")
+            sys.exit(0);    
+        else:
+            print(output)
+            sys.exit(1);
 
     if args.namespace:
-        cmd=('kubectl get deployments -n %s ' % (args.namespace))
-        print("-----------------------------------------------------")
-        print("view all deployments of namespace %s" %(args.namespace))
-        print("-----------------------------------------------------")
-        os.system(cmd)
-        sys.exit()
-
+        v1 = client.AppsV1Api()
+        deployments=v1.list_deployment_for_all_namespaces()
+        data = pd.DataFrame(columns=['NAME','READY_REPLICAS','REPLICAS','UNAVAILABLE','STRATEGY'])
+        for deploy in deployments.items:
+            namespace = deploy.metadata.namespace
+            req_namespace = args.namespace
+            if str(namespace) == str(req_namespace):
+                    name = deploy.metadata.name
+                    deploy = v1.read_namespaced_deployment(name=name,namespace=req_namespace)
+                    name_read = deploy.metadata.name
+                    ready_rep = deploy.status.ready_replicas
+                    replicas = deploy.status.replicas
+                    not_ready = deploy.status.unavailable_replicas
+                    strategy = deploy.spec.strategy.type
+                    if str(replicas) >= str(3):
+                            if str(replicas) != "None":
+                                    data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
+                                    output = data.to_string(justify='center',index=False)
+        if data.empty:
+            print("")
+            print("NO PODS TO SCALE")
+            sys.exit(0);    
+        else:
+            print(output)
+            sys.exit(1);
+    
 def ScaleDeploy():
     WorkDir = "/tmp/scale_deploy"
 
@@ -257,3 +281,4 @@ if __name__=='__main__':
         DecodeSecrets()
     else:
         print("nulla")
+
