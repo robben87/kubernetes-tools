@@ -5,7 +5,6 @@ import argparse
 import shutil
 import base64
 from jinja2 import Environment, FileSystemLoader
-import numpy as np
 import pandas as pd
 from kubernetes import config,client
 config.load_kube_config()
@@ -15,7 +14,7 @@ def EnvDefinition():
     global Date
     global NowDir
 
-def ViewDeploy():
+def viewdeploy():
     if all([ args.namespace ,args.actualreplicas ]):
         v1 = client.AppsV1Api()
 
@@ -37,9 +36,21 @@ def ViewDeploy():
             print("")
             print("")
             sys.exit(0);    
+        elif all([ args.namespace ,args.actualreplicas ,args.scale ,args.replicas ]):
+            print(output)
+            print("\n scaling deploy to: "+args.replicas)
+            namespace = args.namespace
+            actual_replicas = args.actualreplicas
+            replicas = args.replicas
+            scaledeploy(namespace,actual_replicas,replicas)
+            #scaledeploy(args.namespace,args.actualreplicas,args.replicas)
+            sys.exit(0); 
+        elif all([ args.namespace ,args.actualreplicas ,args.scale]) or all([ args.namespace ,args.actualreplicas ,args.replicas]):
+            print("ERROR: --scale or --replicas must be declared togheter")
+            sys.exit(1);
         else:
             print(output)
-            sys.exit(1);
+            sys.exit(0);
 
     if args.namespace:
         v1 = client.AppsV1Api()
@@ -56,19 +67,16 @@ def ViewDeploy():
                     replicas = deploy.status.replicas
                     not_ready = deploy.status.unavailable_replicas
                     strategy = deploy.spec.strategy.type
-                    if str(replicas) >= str(3):
-                            if str(replicas) != "None":
-                                    data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
-                                    output = data.to_string(justify='center',index=False)
+                    data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
+                    output = data.to_string(justify='center',index=False)
         if data.empty:
             print("")
-            print("NO PODS TO SCALE")
             sys.exit(0);    
         else:
             print(output)
             sys.exit(1);
     
-def ScaleDeploy():
+def scaledeploy(namespace,actual_replicas,replicas):
     WorkDir = "/tmp/scale_deploy"
 
     Template = os.path.join(WorkDir,"template.yaml")
@@ -236,20 +244,16 @@ if __name__=='__main__':
     parser_view=subparsers.add_parser("view",help="List deployments for a namespace (The default namespace is  default)")
     parser_view.add_argument("-n","--namespace",help="Specify namespace",default="default")
     parser_view.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
-    parser_view.set_defaults(func=ViewDeploy)
+    parser_view.add_argument("-r","--replicas", help="Specify for which replicas you want to scale requires --scale",required=False)
+    parser_view.add_argument("-sc","--scale", help="Scaling down, if defined then will scale to specified replicas arg --replicas",action="store",required=False,nargs='?', const="Y", type=str)
+    parser_view.set_defaults(func=viewdeploy)
 
-    #createtheparserforthe"scale"command
-    parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
-    parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
-    parser_scale.add_argument("-r","--replicas", help="Specify for which replicas you want to scale",required=False)
-    parser_scale.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
-    parser_scale.set_defaults(func=ScaleDeploy)
-
-#    #createtheparserforthe"events"command
-#    parser_events=subparsers.add_parser("events",help="View events ordered by time")
-#    parser_events.add_argument("-w","--watch",help="tail events",default=None,required=False,action='store_true')
-#    parser_events.add_argument("-n","--namespace",help="specify namespace",default=None,required=False)
-#    parser_events.set_defaults(func=GetEvents)
+   # #createtheparserforthe"scale"command
+   # parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
+   # parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
+   # parser_scale.add_argument("-r","--replicas", help="Specify for which replicas you want to scale",required=False)
+   # parser_scale.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
+   # parser_scale.set_defaults(func=scaledeploy)
 
     #createtheparserforthe"RollingUpdate"command
     parser_rolling=subparsers.add_parser("rolling-update",help="Execute rolling Update for deployments")
@@ -269,16 +273,12 @@ if __name__=='__main__':
     args=parser.parse_args()
 
     if "view" in sys.argv:
-        ViewDeploy()
-    elif "scale" in sys.argv:
-        ScaleDeploy()
-    # TODO
-    # elif "events" in sys.argv:
-        # GetEvents()
+        viewdeploy()
+    #elif "scale" in sys.argv:
+    #    scaledeploy()
     elif "rolling-update" in sys.argv:
         RollingDeploy()
     elif "decode-secrets" in sys.argv:
         DecodeSecrets()
     else:
         print("nulla")
-
