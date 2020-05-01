@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pipenv-shebang
 import sys
 import os
 import argparse
