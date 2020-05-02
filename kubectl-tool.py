@@ -43,7 +43,6 @@ def viewdeploy():
             actual_replicas = args.actualreplicas
             replicas = args.replicas
             scaledeploy(namespace,actual_replicas,replicas)
-            #scaledeploy(args.namespace,args.actualreplicas,args.replicas)
             sys.exit(0); 
         elif all([ args.namespace ,args.actualreplicas ,args.scale]) or all([ args.namespace ,args.actualreplicas ,args.replicas]):
             print("ERROR: --scale or --replicas must be declared togheter")
@@ -200,20 +199,20 @@ def decodesecrets():
             value_decoded = value_decoded.decode('utf-8',errors='ignore')
             #keys = str(key+":")
             data = data.append({'KEY': key,'VALUE': value_decoded}, ignore_index=True)
-            
             #output = output.str.wrap(50)
             #print("%-15s\t%-15s" % (keys,value_decoded.decode('utf-8',errors='ignore')))
-        output = data.to_string(justify='left',index=False)
+        output = data.to_string(justify='center',index=False)
         print(output)
         sys.exit()
 
     if  args.namespace:
         secrets_list = v1.list_namespaced_secret(args.namespace)
         for sec in secrets_list.items:
-            print("\n------- Decoding All Secrets for namespace :"+args.namespace.upper()+" -------\n")
+            print("\n------- Decoding All Secrets for namespace: "+args.namespace.upper()+" -------\n")
             print("\n-------"+sec.metadata.name.upper()+"-------\n")
             secret_name = sec.metadata.name
-            secret_single = v1.read_namespaced_secret(name=secret_name,namespace="docfly")
+            namespace = sec.metadata.namespace
+            secret_single = v1.read_namespaced_secret(name=secret_name,namespace=namespace)
             secrets_data = (secret_single.data)
             for key,value in secrets_data.items():
                 value_decoded = base64.b64decode(value)
@@ -238,18 +237,12 @@ if __name__=='__main__':
     parser_view.add_argument("-sc","--scale", help="Scaling down, if defined then will scale to specified replicas arg --replicas",action="store",required=False,nargs='?', const="Y", type=str)
     parser_view.set_defaults(func=viewdeploy)
 
-    #createtheparserforthe"scale"command
-    parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
-    parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
-    parser_scale.add_argument("-r","--replicas", help="Specify for which replicas you want to scale",required=False)
-    parser_scale.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
-    parser_scale.set_defaults(func=scaledeploy)
-
-#    #createtheparserforthe"events"command
-#    parser_events=subparsers.add_parser("events",help="View events ordered by time")
-#    parser_events.add_argument("-w","--watch",help="tail events",default=None,required=False,action='store_true')
-#    parser_events.add_argument("-n","--namespace",help="specify namespace",default=None,required=False)
-#    parser_events.set_defaults(func=GetEvents)
+    ##createtheparserforthe"scale"command
+    #parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
+    #parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
+    #parser_scale.add_argument("-r","--replicas", help="Specify for which replicas you want to scale",required=False)
+    #parser_scale.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
+    #parser_scale.set_defaults(func=scaledeploy)
 
     #createtheparserforthe"RollingUpdate"command
     parser_rolling=subparsers.add_parser("rolling-update",help="Execute rolling Update for deployments")
@@ -270,8 +263,8 @@ if __name__=='__main__':
 
     if "view" in sys.argv:
         viewdeploy()
-    elif "scale" in sys.argv:
-        scaledeploy()
+    #elif "scale" in sys.argv:
+    #    scaledeploy()
     # TODO
     # elif "events" in sys.argv:
         # GetEvents()
@@ -281,4 +274,3 @@ if __name__=='__main__':
         decodesecrets()
     else:
         print("nulla")
-
