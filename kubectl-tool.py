@@ -24,11 +24,11 @@ def viewdeploy():
             name = deploy.metadata.name
             deploy = v1.read_namespaced_deployment(name=name,namespace=args.namespace)
             name_read = deploy.metadata.name
-            ready_rep = deploy.status.ready_replicas
-            replicas = deploy.status.replicas
-            not_ready = deploy.status.unavailable_replicas
+            ready_rep = checkOrDefault(deploy.status.ready_replicas)
+            replicas = checkOrDefault(deploy.status.replicas)
+            not_ready = checkOrDefault(deploy.status.unavailable_replicas)
             strategy = deploy.spec.strategy.type
-            if str(args.actualreplicas) == str(replicas):
+            if args.actualreplicas == int(replicas):
                 data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
                 output = data.to_string(justify='center',index=False)
 
@@ -42,7 +42,14 @@ def viewdeploy():
             namespace = args.namespace
             actual_replicas = args.actualreplicas
             replicas = args.replicas
-            scaledeploy(namespace,actual_replicas,replicas)
+            for deploy in list_deployment.items:
+                name = deploy.metadata.name
+                deploy = v1.read_namespaced_deployment(name=name,namespace=args.namespace)
+                name_read = deploy.metadata.name
+                replicas = deploy.status.replicas
+                repl_toscale = args.replicas
+                if args.actualreplicas == int(replicas):
+                    scaledeploy(name,namespace,repl_toscale)
             sys.exit(0); 
         elif all([ args.namespace ,args.actualreplicas ,args.scale]) or all([ args.namespace ,args.actualreplicas ,args.replicas]):
             print("ERROR: --scale or --replicas must be declared togheter")
@@ -62,9 +69,9 @@ def viewdeploy():
                     name = deploy.metadata.name
                     deploy = v1.read_namespaced_deployment(name=name,namespace=req_namespace)
                     name_read = deploy.metadata.name
-                    ready_rep = deploy.status.ready_replicas
-                    replicas = deploy.status.replicas
-                    not_ready = deploy.status.unavailable_replicas
+                    ready_rep = checkOrDefault(deploy.status.ready_replicas)
+                    replicas = checkOrDefault(deploy.status.replicas)
+                    not_ready = checkOrDefault(deploy.status.unavailable_replicas)
                     strategy = deploy.spec.strategy.type
                     data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
                     output = data.to_string(justify='center',index=False)
@@ -74,58 +81,19 @@ def viewdeploy():
         else:
             print(output)
             sys.exit(1);
+
+def checkOrDefault(x):
+    return int(0) if str(x) == "None" else int(x)
     
-def scaledeploy(namespace,actual_replicas,replicas):
-    WorkDir = "/tmp/scale_deploy"
-
-    Template = os.path.join(WorkDir,"template.yaml")
-    List = os.path.join(WorkDir,"lista.deploy.txt")
+def scaledeploy(name,namespace,repl_toscale):
+    v1 = client.AppsV1Api()
     try:
-        if os.path.exists(WorkDir) :
-            print("")
-        else:
-            os.makedirs(WorkDir)
-        if os.path.exists(Template):
-            os.remove(Template)
-        if os.path.exists(List):
-            os.remove(List)
+        replicas = int(repl_toscale)
+        body={"apiVersion": "extensions/v1beta1","kind": "Deployment","spec": {"replicas": replicas}}
+        deploy=v1.patch_namespaced_deployment_scale(name=name,namespace=namespace,body=body)
+        print("deployment/"+name+" scaled")
     except:
-        print("somthing Wrong in creating directories")
-
-    cmd=('kubectl get deployments -n %s  | grep "%s/%s" | awk \'{print $1}\' > %s' % (args.namespace,args.actualreplicas,args.actualreplicas,List))
-    os.system(cmd)
-    #\\ Template File creation \\#
-    file=open(Template,"w")
-    file.write("apiVersion: extensions/v1beta1\n")
-    file.write("kind: Deployment\n")
-    file.write("metadata:\n")
-    file.write("  name: {{ name }}\n")
-    file.write("spec:\n")
-    file.write("  replicas: {{ replicas }}\n")
-    file.close()
-    with open(List) as name:
-        for line in name:
-            deploy_name=line.replace('\n','')
-            line=line.replace('\n','')
-            line=line+".yaml"
-            patch_file=os.path.join(WorkDir,line)
-            shutil.copyfile(Template,patch_file)
-            #\\ Rendering Template  \\#
-            # Capture our current directory
-            THIS_DIR = os.path.dirname(os.path.abspath(Template))
-            #print(THIS_DIR)
-            # Create the jinja2 environment.
-            # Notice the use of trim_blocks, which greatly helps control whitespace.
-            j2_env = Environment(loader=FileSystemLoader(THIS_DIR),trim_blocks=True)
-            output=j2_env.get_template('template.yaml').render(name=deploy_name,replicas=args.replicas)
-            file=open(patch_file,"w")
-            file.write(str(output))
-            file.close()
-            cmd=('kubectl patch deployments/%s --patch "$(cat %s)" -n %s'%(deploy_name,patch_file,args.namespace))
-            os.system(cmd)
-
-    if os.path.exists(WorkDir) and os.path.isdir(WorkDir):
-        shutil.rmtree(WorkDir)
+        print("Caught error while scaling Deployment "+name)
 
 def RollingDeploy():
    WorkDir = "/tmp/Rolling_deploy"
@@ -230,30 +198,23 @@ if __name__=='__main__':
     subparsers=parser.add_subparsers()
 
     #createtheparserforthe"view"command
-    parser_view=subparsers.add_parser("view",help="List deployments for a namespace (The default namespace is  default)")
-    parser_view.add_argument("-n","--namespace",help="Specify namespace",default="default")
-    parser_view.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
-    parser_view.add_argument("-r","--replicas", help="Specify for which replicas you want to scale requires --scale",required=False)
+    parser_view=subparsers.add_parser("view",help="List deployments for a namespace, with --scale option can increse or decrease deployments with same replicaset (The default namespace is  default)")
+    parser_view.add_argument("-n","--namespace",help="Specify namespace",default="default",type=str)
+    parser_view.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False,type=int)
+    parser_view.add_argument("-r","--replicas", help="Specify for which replicas you want to scale requires --scale",required=False,type=int)
     parser_view.add_argument("-sc","--scale", help="Scaling down, if defined then will scale to specified replicas arg --replicas",action="store",required=False,nargs='?', const="Y", type=str)
     parser_view.set_defaults(func=viewdeploy)
 
-    ##createtheparserforthe"scale"command
-    #parser_scale=subparsers.add_parser("scale",help="Scale deployments at desired replicas")
-    #parser_scale.add_argument("-n","--namespace",help="Specify namespace",default="default")
-    #parser_scale.add_argument("-r","--replicas", help="Specify for which replicas you want to scale",required=False)
-    #parser_scale.add_argument("-ar","--actualreplicas", help="Search for deployments that has same int value of replica",action="store",required=False)
-    #parser_scale.set_defaults(func=scaledeploy)
-
     #createtheparserforthe"RollingUpdate"command
     parser_rolling=subparsers.add_parser("rolling-update",help="Execute rolling Update for deployments")
-    parser_rolling.add_argument("-d","--deployment",help="Deploy",action="store",required=False)
-    parser_rolling.add_argument("-n","--namespace",help="Specify namespace",default="default")
+    parser_rolling.add_argument("-d","--deployment",help="Deploy",action="store",required=False,type=str)
+    parser_rolling.add_argument("-n","--namespace",help="Specify namespace",default="default",type=str)
     parser_rolling.set_defaults(func=RollingDeploy)
 
     #Create the parser for the "DecodeSecrets" command
     parser_decode=subparsers.add_parser("decode-secrets",help="Decode secrets contents")
-    parser_decode.add_argument("-s","--secret",help="Secret name to be decoded",action="store",required=False)
-    parser_decode.add_argument("-n","--namespace",help="Specify namespace. Without secret specified it will print all secrets decoded for the namespace",default="default")
+    parser_decode.add_argument("-s","--secret",help="Secret name to be decoded",action="store",required=False,type=str)
+    parser_decode.add_argument("-n","--namespace",help="Specify namespace. Without secret specified it will print all secrets decoded for the namespace",default="default",type=str)
     parser_decode.set_defaults(func=decodesecrets)
 
     if len(sys.argv[1:])==0:
@@ -263,11 +224,6 @@ if __name__=='__main__':
 
     if "view" in sys.argv:
         viewdeploy()
-    #elif "scale" in sys.argv:
-    #    scaledeploy()
-    # TODO
-    # elif "events" in sys.argv:
-        # GetEvents()
     elif "rolling-update" in sys.argv:
         RollingDeploy()
     elif "decode-secrets" in sys.argv:
