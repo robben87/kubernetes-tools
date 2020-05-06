@@ -6,6 +6,7 @@ import shutil
 import base64
 from jinja2 import Environment, FileSystemLoader
 import pandas as pd
+from tabulate import tabulate
 from kubernetes import config,client
 config.load_kube_config()
 
@@ -30,15 +31,16 @@ def viewdeploy():
             strategy = deploy.spec.strategy.type
             if args.actualreplicas == int(replicas):
                 data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
-                output = data.to_string(justify='center',index=False)
+                #output = data.to_string(justify='center',index=False)
+                output = data
 
         if data.empty:
             print("")
             print("")
             sys.exit(0);    
         elif all([ args.namespace ,args.actualreplicas ,args.scale ,args.replicas ]):
-            print(output)
-            print("\n scaling deploy to: "+args.replicas)
+            pretty_print(output)
+            print("\n scaling deploy to: "+str(args.replicas))
             namespace = args.namespace
             actual_replicas = args.actualreplicas
             replicas = args.replicas
@@ -48,14 +50,14 @@ def viewdeploy():
                 name_read = deploy.metadata.name
                 replicas = deploy.status.replicas
                 repl_toscale = args.replicas
-                if args.actualreplicas == int(replicas):
+                if str(args.actualreplicas) == str(replicas):
                     scaledeploy(name,namespace,repl_toscale)
             sys.exit(0); 
         elif all([ args.namespace ,args.actualreplicas ,args.scale]) or all([ args.namespace ,args.actualreplicas ,args.replicas]):
             print("ERROR: --scale or --replicas must be declared togheter")
             sys.exit(1);
         else:
-            print(output)
+            pretty_print(output)
             sys.exit(0);
 
     if args.namespace:
@@ -74,16 +76,21 @@ def viewdeploy():
                     not_ready = checkOrDefault(deploy.status.unavailable_replicas)
                     strategy = deploy.spec.strategy.type
                     data = data.append({'NAME': name_read,'READY_REPLICAS': ready_rep,'REPLICAS': replicas,'UNAVAILABLE': not_ready,'STRATEGY': strategy}, ignore_index=True)
-                    output = data.to_string(justify='center',index=False)
+                    output = data
         if data.empty:
             print("")
             sys.exit(0);    
         else:
-            print(output)
+            pretty_print(output)
             sys.exit(1);
 
+#Convert NoneType output to number
 def checkOrDefault(x):
     return int(0) if str(x) == "None" else int(x)
+
+#Output Formatting
+def pretty_print(df):
+    print(tabulate(df, showindex=False, headers=df.columns, numalign="left"))
     
 def scaledeploy(name,namespace,repl_toscale):
     v1 = client.AppsV1Api()
@@ -91,7 +98,7 @@ def scaledeploy(name,namespace,repl_toscale):
         replicas = int(repl_toscale)
         body={"apiVersion": "extensions/v1beta1","kind": "Deployment","spec": {"replicas": replicas}}
         deploy=v1.patch_namespaced_deployment_scale(name=name,namespace=namespace,body=body)
-        print("deployment/"+name+" scaled")
+        print("       deployment/"+name+" scaled")
     except:
         print("Caught error while scaling Deployment "+name)
 
@@ -169,8 +176,8 @@ def decodesecrets():
             data = data.append({'KEY': key,'VALUE': value_decoded}, ignore_index=True)
             #output = output.str.wrap(50)
             #print("%-15s\t%-15s" % (keys,value_decoded.decode('utf-8',errors='ignore')))
-        output = data.to_string(justify='center',index=False)
-        print(output)
+        output = data
+        pretty_print(output)
         sys.exit()
 
     if  args.namespace:
