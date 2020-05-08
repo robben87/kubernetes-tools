@@ -11,11 +11,6 @@ from tabulate import tabulate
 from kubernetes import config,client
 config.load_kube_config()
 
-def EnvDefinition():
-    global WorkDir
-    global Date
-    global NowDir
-
 def viewdeploy():
     if all([ args.namespace ,args.actualreplicas ]):
         v1 = client.AppsV1Api()
@@ -139,10 +134,7 @@ def decodesecrets():
         for key,value in secrets_data.items():
             value_decoded = base64.b64decode(value)
             value_decoded = value_decoded.decode('utf-8',errors='ignore')
-            #keys = str(key+":")
             data = data.append({'KEY': key,'VALUE': value_decoded}, ignore_index=True)
-            #output = output.str.wrap(50)
-            #print("%-15s\t%-15s" % (keys,value_decoded.decode('utf-8',errors='ignore')))
         output = data
         pretty_print(output)
         sys.exit()
@@ -164,8 +156,6 @@ def decodesecrets():
 
 if __name__=='__main__':
 
-    #Call Functions:
-    EnvDefinition()
     #Argparse e help menu
     #createthetop-levelparser
     parser=argparse.ArgumentParser()
