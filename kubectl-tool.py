@@ -4,7 +4,8 @@ import os
 import argparse
 import shutil
 import base64
-from jinja2 import Environment, FileSystemLoader
+import random
+#from jinja2 import Environment, FileSystemLoader
 import pandas as pd
 from tabulate import tabulate
 from kubernetes import config,client
@@ -102,64 +103,30 @@ def scaledeploy(name,namespace,repl_toscale):
     except:
         print("Caught error while scaling Deployment "+name)
 
-def RollingDeploy():
-   WorkDir = "/tmp/Rolling_deploy"
+def rolligupdate():
+    v1 = client.AppsV1Api()
+    try:
+        name=args.deployment
+        namespace=args.namespace
+        app_value=str("RollingUpdate")+str(random.randint(1, 10000))
+        body={"apiVersion": "extensions/v1beta1",
+            "kind": "Deployment",
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "app1": app_value
+                        }
+                    }
+                            }
+                    }
+        }
+        deploy=v1.patch_namespaced_deployment_with_http_info(name=name,namespace=namespace,body=body)
+    except:
+        print("Caught error while Rolling Deployment "+name+" namespace="+namespace)
 
-   Template = os.path.join(WorkDir,"template.yaml")
-   List = os.path.join(WorkDir,"lista.deploy.txt")
-   try:
-       #Create WorkDir
-       if os.path.exists(WorkDir) :
-           print("")
-       else:
-           os.makedirs(WorkDir)
-       if os.path.exists(Template):
-           os.remove(Template)
-       if os.path.exists(List):
-           os.remove(List)
-   except:
-       print("somthing Wrong in creating directories")
 
-   cmd=('kubectl get deployments %s -n %s  --no-headers | awk \'{print $1}\' > %s' % (args.deployment,args.namespace,List))
-   os.system(cmd)
-   #print(cmd)
-   #\\ Template File creation \\#
-   file=open(Template,"w")
-   file.write("kind: Deployment\n")
-   file.write("metadata:\n")
-   file.write("  name: {{ name }}\n")
-   file.write("spec:\n")
-   file.write("  template:\n")
-   file.write("    metadata:\n")
-   file.write("      labels:\n")
-   file.write("        app1: RollingUpdate{{ range(1, 1000) | random }}\n")
-   file.close()
-   with open(List) as name:
-       for line in name:
-           deploy_name=line.replace('\n','')
-           line=line.replace('\n','')
-           line=line+".yaml"
-           patch_file=os.path.join(WorkDir,line)
-           shutil.copyfile(Template,patch_file)
-           #\\ Rendering Template  \\#
-           # Capture our current directory
-           THIS_DIR = os.path.dirname(os.path.abspath(Template))
-           #print(THIS_DIR)
-           # Create the jinja2 environment.
-           # Notice the use of trim_blocks, which greatly helps control whitespace.
-           j2_env = Environment(loader=FileSystemLoader(THIS_DIR),trim_blocks=True)
-           output=j2_env.get_template('template.yaml').render(name=args.deployment)
-           file=open(patch_file,"w")
-           #print(file)
-           file.write(str(output))
-           file.close()
-           cmd=('kubectl patch deployments/%s --patch "$(cat %s)" -n %s'%(deploy_name,patch_file,args.namespace))
-           #print("----Rolling deployment----")
-           os.system(cmd)
 
-   #Delete working Dirs
-   if os.path.exists(WorkDir) and os.path.isdir(WorkDir):
-       shutil.rmtree(WorkDir)
 
 def decodesecrets():
     v1 = client.CoreV1Api()
@@ -216,7 +183,7 @@ if __name__=='__main__':
     parser_rolling=subparsers.add_parser("rolling-update",help="Execute rolling Update for deployments")
     parser_rolling.add_argument("-d","--deployment",help="Deploy",action="store",required=False,type=str)
     parser_rolling.add_argument("-n","--namespace",help="Specify namespace",default="default",type=str)
-    parser_rolling.set_defaults(func=RollingDeploy)
+    parser_rolling.set_defaults(func=rolligupdate)
 
     #Create the parser for the "DecodeSecrets" command
     parser_decode=subparsers.add_parser("decode-secrets",help="Decode secrets contents")
@@ -232,7 +199,7 @@ if __name__=='__main__':
     if "view" in sys.argv:
         viewdeploy()
     elif "rolling-update" in sys.argv:
-        RollingDeploy()
+        rolligupdate()
     elif "decode-secrets" in sys.argv:
         decodesecrets()
     else:
