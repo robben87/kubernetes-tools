@@ -10,6 +10,7 @@ kubernetes = "*"
 numpy = "*"
 pandas = "*"
 jinja2 = "*"
+tabulate = "*"
 
 [requires]
 python_version = "3.6"
