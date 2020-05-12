@@ -117,7 +117,7 @@ def rolligupdate():
                     }
         }
         deploy=v1.patch_namespaced_deployment_with_http_info(name=name,namespace=namespace,body=body)
-        print("       deployment/"+name" patched") 
+        print("       deployment/"+name+" patched") 
     except:
         print("Caught error while Rolling Deployment "+name+" namespace="+namespace)
 
